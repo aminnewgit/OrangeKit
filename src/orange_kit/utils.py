@@ -1,3 +1,5 @@
+import datetime
+
 def line_to_hump(string):
   upper = False
   new_str = ''
@@ -10,3 +12,6 @@ def line_to_hump(string):
     else:
       new_str += char
   return new_str
+
+def get_now():
+  return datetime.datetime.now()

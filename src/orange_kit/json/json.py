@@ -10,8 +10,7 @@ class __JsonEncoder(json.JSONEncoder):
     elif isinstance(obj, datetime.date):
       return obj.strftime('%Y-%m-%d')
     elif isinstance(obj, VoBase):
-      obj = obj.get_camel_case_dict()
-      return json_dumps(obj)
+      return obj.get_camel_case_dict()
     else:
       return json.JSONEncoder.default(self, obj)
 

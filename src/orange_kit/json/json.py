@@ -1,6 +1,7 @@
 import datetime
 import json
 
+from orange_kit import BaseEnum
 from orange_kit.model import VoBase
 
 class __JsonEncoder(json.JSONEncoder):
@@ -11,6 +12,8 @@ class __JsonEncoder(json.JSONEncoder):
       return obj.strftime('%Y-%m-%d')
     elif isinstance(obj, VoBase):
       return obj.get_camel_case_dict()
+    elif isinstance(obj, BaseEnum):
+      return obj.value
     else:
       return json.JSONEncoder.default(self, obj)
 

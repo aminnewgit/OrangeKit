@@ -1,76 +1,100 @@
 from abc import ABCMeta
-from types import GenericAlias
+from .field import VoField
+from .exception import VoBaseClassInheritError, FieldDefineError
 
+def create_field(class_name,namespace,field_name,field_type,index):
+  # 处理字段定义
+  field = namespace.get(field_name)
 
-from .exception import FieldValidationError
-from .enum import BaseEnum
-from ..utils import line_to_hump
+  if field is None:
+    raise FieldDefineError(f'类:{class_name}的字段:{field_name} 的字段定义没有设置')
+  elif isinstance(field,VoField) is False:
+    raise FieldDefineError(f'类:{class_name}的字段:{field_name} 的字段定义 不是VoField或他的子类')
 
+  field.class_name = class_name
+  field.name = field_name
+  field.type = field_type
+  field.index = index
+  field.init()
+  return field
 
-class VoField:
-  desc:str
+def init_value_object(class_name,namespace):
+  field_list = []
+  field_dict = {}
+  field_name_list = []
+  # field_camel_case_dict = {} # 用于后期json序列化适配 alias(别名)
 
-  __slots__ = (
-    "desc","name",'db_map_json',
-    'index','camel_case','type',
-    'default','require','type_converter')
+  an_dict = namespace.get("__annotations__")
+  if an_dict is not None:
+    for index, (field_name, field_type) in enumerate(an_dict.items()):
+      # 处理字段定义
+      field = create_field(class_name,namespace,field_name,field_type,index)
+      # 字段索引
+      field_list.append(field)
+      field_dict[field_name] = field
+      field_name_list.append(field_name)
+      # 给类 属性复制 属性名 方便快速引用
+      namespace[field_name] = field_name
 
-  def __init__(self,desc,db_map_json = False,default=None,require=False):
-    self.desc = desc
-    self.name = None
-    self.db_map_json = db_map_json
-    self.index = None
-    self.camel_case = None
-    self.type = None
-    self.default = default
-    self.require: bool = require
-    self.type_converter = None
+  namespace["__field_name_list__"] = tuple(field_name_list)
+  namespace["__field_list__"] = tuple(field_list)
+  namespace["__field_dict__"] = field_dict
 
-  def __repr__(self):
-    return "VoField"
+def inherit_value_object(class_name,parent_class,namespace):
+  field_name_list = list(parent_class.__field_name_list__)
+  field_list = list(parent_class.__field_list__)
+  field_dict = {}
+  field_dict.update(parent_class.__field_dict__)
+  field_index_base = len(field_list) - 1
+
+  an_dict:dict[str:any] = namespace.get("__annotations__")
+  if an_dict is not None:
+    for index, (field_name, field_type) in enumerate(an_dict.items()):
+      # 处理字段定义
+      # 处理字段定义
+      field = create_field(class_name,namespace, field_name, field_type, index)
+      # 处理重写
+      parent_field = field_dict.get(field_name)
+      if parent_field is None:
+        # 字段索引
+        field.index += field_index_base
+        field_list.append(field)
+        field_name_list.append(field_name)
+      else:
+        index = parent_field.index
+        field.index = index
+        field_list[index] = field
+
+      field_dict[field_name] = field
+      # 给类 属性复制 属性名 方便快速引用
+      namespace[field_name] = field_name
+
+  namespace["__field_name_list__"] = tuple(field_name_list)
+  namespace["__field_list__"] = tuple(field_list)
+  namespace["__field_dict__"] = field_dict
 
 
 class __VoMetaclass(ABCMeta):
   def __new__(mcs, name, bases, namespace, **kwargs):
-    if name != "VoBase":
-      # print(name,namespace)
-      an_dict = namespace.get("__annotations__")
-      field_list = []
-      field_dict = {}
-      field_name_list = []
-      if an_dict is not None:
-        for index,(field_name,field_type) in enumerate(an_dict.items()):
-          # 处理字段定义
-          field = namespace.get(field_name)
-          if field is None:
-            field = VoField(field_name)
-          field.name = field_name
-          field.type = field_type
-          field.index = index
-          field.camel_case = line_to_hump(field_name)   # 转驼峰
-          field.type_converter = get_type_converter(field_type)
 
-          # 字段索引
-          field_list.append(field)
-          field_dict[field_name] = field
-          field_name_list.append(field_name)
-
-          # 给类 属性复制 属性名 方便快速引用
-          namespace[field_name] = field_name
-
-      namespace["__field_name_list__"] = tuple(field_name_list)
-      namespace["__field_list__"] = tuple(field_list)
-      namespace["__field_dict__"] = field_dict
-
-
+    if len(bases) > 1:
+      raise VoBaseClassInheritError("VoBase 类只支持单继承")
+    elif len(bases) == 1:
+      # 用不同field来处理不同的业务,所以 VoBase 不会继承出新的基础类型
+      parent_class = bases[0]
+      if parent_class is VoBase:
+        init_value_object(name, namespace)
+      elif issubclass(parent_class,VoBase):
+        inherit_value_object(name, parent_class, namespace)
+      else:
+        raise VoBaseClassInheritError(f'类:{name}不能继承非VoBase子类的类:{parent_class.__name__}')
+    # else: 没有继承的情况只有 VoBase 初始化的时候才有所以什么都不用做
     return super().__new__(mcs, name, bases, namespace, **kwargs)
 
 
 class VoBase(metaclass=__VoMetaclass):
-  """value object base class"""
-  # todo 对继承的处理
   __field_name_list__: tuple
-  __field_list__: tuple[VoField]
+  __field_list__: tuple
   __field_dict__: dict
 
   def get_camel_case_dict(self):
@@ -80,125 +104,22 @@ class VoBase(metaclass=__VoMetaclass):
       out_dict[field.camel_case] = data.get(field.name)
     return out_dict
 
-  def __init_by_camel_case__(self,data_dict):
-    for field in self.__class__.__field_list__:
-      val = data_dict.get(field.camel_case,field.default)
-      self.__setattr__(field.name, val)
+  @classmethod
+  def get_field_define_list(cls):
+    return [field.get_field_define_dict() for field in cls.__field_list__]
 
 
   def __repr__(self):
     return f"{self.__class__.__name__} {self.__dict__.__repr__()}"
 
   def __init__(self,data_dict=None):
+    field_list = self.__class__.__field_list__
 
     if data_dict is None :
-      for field in self.__class__.__field_list__:
+      for field in field_list:
         self.__setattr__(field.name, field.default)
     else:
-      for field in self.__class__.__field_list__:
-        # 获取值
-        val = data_dict.get(field.name)
-        if val is None:
-          val = data_dict.get(field.camel_case,field.default)
-
-        # 转化值类型, 验证值类型
-        if val is None:
-          if field.require is True:
-            msg = f'{field.name}是必填字段'
-            raise FieldValidationError(msg)
-        elif field.type_converter is not None:
-          val = field.type_converter(val,field)
+      for field in field_list:
+        val = field.get_value_from_dict(data_dict)
         self.__setattr__(field.name,val)
 
-
-# ==============类型转换======================
-
-# ==基本类型==
-
-def int_converter(val,field,exMsg='值'):
-  if type(val) is int: return val
-  try:
-    return int(val)
-  except ValueError:
-    msg = f'字段{field.name}的{exMsg}必须是int类型'
-    raise FieldValidationError(msg)
-
-def str_converter(val,field,exMsg='值'):
-  if type(str) is str: return val
-  return str(val)
-
-base_type_converter_dict = {
-  str:str_converter,
-  int:int_converter,
-  # todo float 小数类型转换
-}
-
-
-# ==包装类型==
-def list_converter_factory(typ):
-  element_class = typ.__args__[0]
-  element_converter = get_type_converter(element_class)
-  def converter(val, field, exMsg='值'):
-    res = []
-    for element_val in val:
-      res.append(element_converter(element_val, field, '元素'))
-    return res
-  return converter
-
-wrap_type_converter_factory_dict = {
-  list: list_converter_factory
-  # todo 处理dict 类型的数据
-}
-
-
-# ==封装类型== 转换器
-def enum_converter(val,field,exMsg='值'):
-  if isinstance(val, BaseEnum): return val
-  try:
-    return field.type[val]
-  except KeyError:
-    msg = f'字段{field.name}的{exMsg}没有在枚举范围内'
-    raise FieldValidationError(msg)
-
-def vo_converter_factory(typ):
-  def converter(val,field,exMsg='值'):
-    return typ(val)
-  return converter
-
-
-# ==递归获取转换器==
-def get_type_converter(typ):
-  converter = base_type_converter_dict.get(typ)
-  if converter is None:
-    typ_typ = type(typ)
-
-    if typ_typ == GenericAlias:
-      wrap_class = typ.__origin__
-      factory = wrap_type_converter_factory_dict[wrap_class]
-      if (factory is not None):
-        converter = factory(typ)
-
-    elif issubclass(typ, BaseEnum):
-      converter = enum_converter
-    elif issubclass(typ, VoBase):
-      converter = vo_converter_factory(typ)
-
-  return converter
-
-
-
-
-#
-# class Test:
-#   a: dict[str,int] = [1,2,3]
-#
-#   def __init__(self,a):
-#     self.a = a
-#
-#
-#
-# a_type = Test.__annotations__.get('a')
-#
-# print(type(a_type))
-# print(a_type.__origin__)
-# print(a_type.__args__)

@@ -64,6 +64,7 @@ class OrangeLog:
   def __init__(self,name):
     self.debug = DebugLog(False)
     self.info = InfoLog()
+    self.error = InfoLog()
     self.name = name
 
   def enable_debug_log(self):

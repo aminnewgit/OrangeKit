@@ -1,6 +1,10 @@
 from abc import ABCMeta
+from typing import Generic
+
 from .field import VoField
 from .exception import VoBaseClassInheritError, FieldDefineError
+
+vo_dict = {}
 
 def create_field(class_name,namespace,field_name,field_type,index):
   # 处理字段定义
@@ -73,23 +77,44 @@ def inherit_value_object(class_name,parent_class,namespace):
   namespace["__field_list__"] = tuple(field_list)
   namespace["__field_dict__"] = field_dict
 
+def create_vo_class(name, bases, namespace):
+  # 用不同field来处理不同的业务,所以 VoBase 不会继承出新的基础类型
+  parent_class = bases[0]
+  if parent_class is VoBase:
+    init_value_object(name, namespace)
+  elif issubclass(parent_class, VoBase):
+    inherit_value_object(name, parent_class, namespace)
+  else:
+    raise VoBaseClassInheritError(f'类:{name}不能继承非VoBase子类的类:{parent_class.__name__}')
+
+def create_generic_vo_warp_class(name, bases, namespace):
+  # 处理带有泛型的封装类, 只用作类型指示
+  parent_class = bases[0]
+  parent2_is_generic_alias = bases[1] is Generic
+  if parent_class is VoBase and parent2_is_generic_alias:
+    init_value_object(name, namespace)
+  elif issubclass(parent_class, VoBase) and parent2_is_generic_alias:
+    inherit_value_object(name, parent_class, namespace)
+  else:
+    raise VoBaseClassInheritError(f'类:{name}不能继承非VoBase子类的类:{parent_class.__name__}')
+
 
 class __VoMetaclass(ABCMeta):
   def __new__(mcs, name, bases, namespace, **kwargs):
+    if name == "VoBase":
+      return super().__new__(mcs, name, bases, namespace, **kwargs)
 
-    if len(bases) > 1:
+    if len(bases) == 1:
+      create_vo_class(name, bases, namespace)
+    elif len(bases) == 2:
+      create_generic_vo_warp_class(name, bases, namespace)
+    else:
       raise VoBaseClassInheritError("VoBase 类只支持单继承")
-    elif len(bases) == 1:
-      # 用不同field来处理不同的业务,所以 VoBase 不会继承出新的基础类型
-      parent_class = bases[0]
-      if parent_class is VoBase:
-        init_value_object(name, namespace)
-      elif issubclass(parent_class,VoBase):
-        inherit_value_object(name, parent_class, namespace)
-      else:
-        raise VoBaseClassInheritError(f'类:{name}不能继承非VoBase子类的类:{parent_class.__name__}')
+
     # else: 没有继承的情况只有 VoBase 初始化的时候才有所以什么都不用做
-    return super().__new__(mcs, name, bases, namespace, **kwargs)
+    vo_class = super().__new__(mcs, name, bases, namespace, **kwargs)
+    vo_dict[namespace.get('__module__') + "." + name] = vo_class
+    return vo_class
 
 
 class VoBase(metaclass=__VoMetaclass):
@@ -118,8 +143,13 @@ class VoBase(metaclass=__VoMetaclass):
     if data_dict is None :
       for field in field_list:
         self.__setattr__(field.name, field.default)
-    else:
+    elif type(data_dict) is dict:
       for field in field_list:
         val = field.get_value_from_dict(data_dict)
         self.__setattr__(field.name,val)
+    else:
+      raise ValueError(f'类: {self.__class__.__name__} 初始化参数必须是None或dict')
 
+
+def get_vo_base_dict():
+  return vo_dict

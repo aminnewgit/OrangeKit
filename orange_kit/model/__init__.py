@@ -1,3 +1,3 @@
 from .vo import VoBase
 from .field import VoField, DtoField, WrapField
-from .enum import BaseEnum
+from .base_enum import BaseEnum

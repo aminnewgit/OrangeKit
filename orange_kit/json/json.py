@@ -12,7 +12,7 @@ class __JsonEncoder(json.JSONEncoder):
     elif isinstance(obj, VoBase):
       return obj.get_camel_case_dict()
     elif isinstance(obj, BaseEnum):
-      return obj.name
+      return obj.__enum_name__
     else:
       return json.JSONEncoder.default(self, obj)
 

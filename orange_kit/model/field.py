@@ -16,24 +16,28 @@ def get_type_define(typ):
   from orange_kit.model import VoBase
   from orange_kit.model import BaseEnum
 
-  if typ.__class__.__name__ == "_GenericAlias":
-    generic = get_generic_type(typ)
-    typ = {'name': f"{typ.__module__}.{typ.__name__}", "generic": generic}
-  elif isinstance(typ, TypeVar):
-    typ = typ.__name__
-  elif isinstance(typ, type):
-    if hasattr(typ, "__args__"):
-      generic = [get_type_define(t) for t in typ.__args__]
-      typ = {'name': typ.__name__, "generic": generic}
+  # todo 联合类型出错
+  try:
+    if typ.__class__.__name__ == "_GenericAlias":
+      generic = get_generic_type(typ)
+      typ = {'name': f"{typ.__module__}.{typ.__name__}", "generic": generic}
+    elif isinstance(typ, TypeVar):
+      typ = typ.__name__
+    elif isinstance(typ, type):
+      if hasattr(typ, "__args__"):
+        generic = [get_type_define(t) for t in typ.__args__]
+        typ = {'name': typ.__name__, "generic": generic}
+      elif issubclass(typ, (VoBase, BaseEnum)) is True:
+        typ = f"{typ.__module__}.{typ.__name__}"
+      else:
+       typ = typ.__name__
     elif issubclass(typ, (VoBase, BaseEnum)) is True:
       typ = f"{typ.__module__}.{typ.__name__}"
     else:
-     typ = typ.__name__
-  elif issubclass(typ, (VoBase, BaseEnum)) is True:
-    typ = f"{typ.__module__}.{typ.__name__}"
-  else:
-    typ = typ.__name__
-  return typ
+      typ = typ.__name__
+    return typ
+  except TypeError:
+    return typ.__repr__()
 
 
 
@@ -124,19 +128,26 @@ class DtoField(VoField):
   def get_value_from_dict(self, input_dict):
     val = self.get_value_from_dict_func(input_dict)
     if val is None:
-      self.verify_value(val)
+      if self.require is True:
+        raise FieldValidationError(f'{self.name}是必填字段')
     else:
       val = self.type_converter(val)
+      val = self.verify_value(val)
     return val
 
   def verify_value(self, val):
     # todo 获取类型验证函数 比如 str require 就是不能为空, 字段可以加入规则list, 不支持async
-    if self.require is True:
-      raise FieldValidationError(f'{self.name}是必填字段')
+    # todo 初始化字段的时候自动选择验证器
+    if self.type is str:
+      val = val.strip()
+      if self.require is True and val == "":
+        raise FieldValidationError(f'{self.name}是必填字段并且不为空')
+    return val
 
   def get_field_define_dict(self):
     define_dict = super().get_field_define_dict()
     define_dict['require'] = self.require
+    return define_dict
 
 # 用于带有泛型的包装类定义, 只能做类型指示不做实例化使用,一般用于返回值
 class WrapField(VoField):

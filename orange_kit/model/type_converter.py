@@ -4,12 +4,16 @@
 
 from types import GenericAlias
 
-from .enum import BaseEnum
+from .base_enum import BaseEnum
 from .exception import FieldValidationError
 
 # 未作转换定义的类型, 不做转换
 def void_converter(val):
   return val
+
+def void_converter_factory(field, ex_msg):
+  return void_converter
+
 
 # 基础类型 str, int, float, bool, None, dict, list
 # 包装类型 list[int], dict[str,int], 这个隶属types. GenericAlias
@@ -71,12 +75,13 @@ def dict_converter_factor(field, ex_msg, sub_type_tuple=None):
     def converter(val):
       if type(val) != dict:
         raise FieldValidationError(f'字段{field.name}的{ex_msg}必须是dict(object)类型')
+      return val
     return converter
 
   key_type = sub_type_tuple[0]
   key_converter = get_type_converter(key_type,'key')
 
-  value_type = sub_type_tuple[0]
+  value_type = sub_type_tuple[1]
   value_converter = get_type_converter(value_type,'value')
 
   def converter(val):
@@ -134,6 +139,8 @@ converter_factory_dict = {
   bool: bool_converter_factory,
   list: list_converter_factor,
   dict: dict_converter_factor,
+  # tuple: void_converter_factory,
+  any: void_converter_factory,
   GenericAlias: generic_alias_converter_factory,
 }
 
@@ -145,17 +152,20 @@ def get_type_converter(field,ex_converter_factory=None):
   typ = field.type
   ex_msg = '值'
   converter_factory = converter_factory_dict.get(typ)
-  if converter_factory is not None:
-    return converter_factory(field,ex_msg)
-  elif issubclass(typ, BaseEnum):
-    return enum_converter_factory(field,ex_msg)
-  elif issubclass(typ, VoBase):
-    return vo_converter_factory(field,ex_msg)
-  elif ex_converter_factory is not None:
-    converter = ex_converter_factory(field,ex_msg)
-    if converter is None:
+  try:
+    if converter_factory is not None:
+      return converter_factory(field,ex_msg)
+    elif issubclass(typ, BaseEnum):
+      return enum_converter_factory(field,ex_msg)
+    elif issubclass(typ, VoBase):
+      return vo_converter_factory(field,ex_msg)
+    elif ex_converter_factory is not None:
+      converter = ex_converter_factory(field,ex_msg)
+      if converter is None:
+        return void_converter
+    else:
       return void_converter
-  else:
+  except TypeError:
     return void_converter
 
 

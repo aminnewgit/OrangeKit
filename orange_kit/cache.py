@@ -4,8 +4,14 @@ jun
 2022-8-3
 """
 import asyncio
+import os.path
 
-from orange_kit.utils import write_json_file, read_json_file
+from .file import ensure_dir_exist
+from .model import VoBase, DtoField
+from .utils import write_json_file, read_json_file
+
+
+
 
 class CacheKeyItem:
 
@@ -28,12 +34,14 @@ class Cache:
   __slots__ = ("key_dict", "polling_time", "task",
                "run", "save_file_name")
 
-  def __init__(self):
+  def __init__(self,save_file_path=''):
     self.key_dict:dict[str, CacheKeyItem] = {}
     self.polling_time = 2 # 轮询时间单位秒
     self.task = None
     self.run = False
-    self.save_file_name = "cache.json"
+    save_file_path = ensure_dir_exist(save_file_path)
+    self.save_file_name = os.path.join(save_file_path,'cache.json')
+    print('cache path', self.save_file_name)
 
   def set(self,k,v,ex):
     item = CacheKeyItem(v, ex)
@@ -73,8 +81,8 @@ class Cache:
 
   def load(self):
     data = read_json_file(self.save_file_name)
-    data = {k:CacheKeyItem(v.get('v'), v.get('ex')) for k,v in data.items()}
     if data is not None:
+      data = {k:CacheKeyItem(v.get('v'), v.get('ex')) for k,v in data.items()}
       self.key_dict = data
 
   def exit(self):

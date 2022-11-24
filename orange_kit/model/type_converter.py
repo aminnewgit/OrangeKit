@@ -55,10 +55,12 @@ def list_converter_factor(field, ex_msg, sub_type_tuple=None):
     def converter(val):
       if type(val) != list:
         raise FieldValidationError(f'字段{field.name}的{ex_msg}必须是list(array)类型')
+      return val
     return converter
 
   item_type = sub_type_tuple[0]
   item_converter = get_type_converter(item_type,"元素")
+
   def converter(val):
     if type(val) != list:
       raise FieldValidationError(f'字段{field.name}的{ex_msg}必须是list(array)类型')

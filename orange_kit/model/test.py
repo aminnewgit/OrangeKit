@@ -1,5 +1,5 @@
-from orange_utils.model import VoBase, VoField
-from orange_utils.json import json_dumps
+from orange_kit.model import VoBase, VoField
+from orange_kit.json import json_dumps
 
 class VoOne(VoBase):
   kid_name:str = VoField('姓名')

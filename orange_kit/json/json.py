@@ -1,7 +1,7 @@
 import datetime
 import json
 
-from orange_utils.model import VoBase, BaseEnum
+from orange_kit.model import VoBase, BaseEnum
 
 class __JsonEncoder(json.JSONEncoder):
   def default(self, obj):

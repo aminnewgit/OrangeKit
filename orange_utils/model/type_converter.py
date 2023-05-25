@@ -123,7 +123,7 @@ def enum_converter_factory(field, ex_msg='值'):
   return converter
 
 def vo_converter_factory(field, ex_msg='值'):
-  from orange_kit.model import VoBase
+  from orange_utils.model import VoBase
   def converter(val):
     typ = field.type
     if isinstance(val,typ): return val
@@ -150,7 +150,7 @@ converter_factory_dict = {
 # ==递归获取转换器==
 # 需要额外扩展的类型转换器, 自定义一个类型转换器工厂函数
 def get_type_converter(field,ex_converter_factory=None):
-  from orange_kit.model import VoBase
+  from orange_utils.model import VoBase
   typ = field.type
   ex_msg = '值'
   converter_factory = converter_factory_dict.get(typ)

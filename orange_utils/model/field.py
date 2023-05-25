@@ -1,8 +1,8 @@
 from typing import TypeVar
 
-from orange_kit.model.exception import FieldValidationError
-from orange_kit.model.type_converter import get_type_converter
-from orange_kit.utils import line_to_hump
+from orange_utils.model.exception import FieldValidationError
+from orange_utils.model.type_converter import get_type_converter
+from orange_utils.utils import line_to_hump
 
 # todo 把名字形式转换器后期单独抽象到一个类, 或者 反倒反序列化时做, 可以配置的 用alias(别名) 作为描述
 
@@ -13,8 +13,8 @@ def get_generic_type(typ):
   return generic
 
 def get_type_define(typ):
-  from orange_kit.model import VoBase
-  from orange_kit.model import BaseEnum
+  from orange_utils.model import VoBase
+  from orange_utils.model import BaseEnum
 
   # todo 联合类型出错
   try:

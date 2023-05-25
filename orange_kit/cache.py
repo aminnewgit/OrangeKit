@@ -62,6 +62,7 @@ class Cache:
     for key in args:
       self.key_dict.pop(key)
 
+  # 检查key 过期
   async def run_poll(self):
     while self.run:
       for k,v in self.key_dict.items():
